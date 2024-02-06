@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+    <meta charset="UTF-8">
+    <title>OpenAI ChatGPT Chatbot</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        #full-conversation {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            margin: 20px auto;
+            padding: 10px;
+        }
+        textarea, input[type="text"] {
+            display: block;
+            margin-bottom: 10px;
+            min-width: 640px;
+        }
+        button {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>ChatGPT Asistent</h1>
+    </div>
+    <div id="full-conversation">
+        <!-- Upravené pre lepšie zobrazenie správ -->
+    </div>
+    <input type="text" id="api-key-input" placeholder="Zadaj OpenAI kľúč..." />
+    <textarea id="user-input" placeholder="Vaša správa..."></textarea>
+    <button type="submit" id="submit">Odoslať</button>
+    <script src="chatbot2.js"></script>
+</body>
+</html>

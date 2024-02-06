@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+    <meta charset="UTF-8">
+    <title>OpenAI ChatGPT Chatbot</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        #full-conversation {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            margin: 20px auto;
+            padding: 10px;
+        }
+        textarea, input[type="text"] {
+            display: block;
+            margin-bottom: 10px;
+            min-width: 640px;
+        }
+        button {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <form class="chat-container" method="post">
+        <div class="header">
+            <h1>ChatGPT Asistent</h1>
+        </div>
+        <div id="full-conversation">
+            <label for="full-conversation">Asistent: Ahoj! Ako ti môžem pomôcť?</label>
+        </div>
+        <input type="text" id="api-key-input" placeholder="Zadaj OpenAI kľúč..." />
+        <textarea type="text" id="user-input" placeholder="Vaša správa..." /></textarea>
+        <button id="submit">Odoslať</button>
+    </form>
+<script src="chatbot2.js"></script>
+<script src="server.js"></script>
+</body>
+</html>
+
+
+chatbot2.js
+
+
+// Put your API key here (keep it private)
+const assistantGreetings = "Asistent: Ahoj! Ako ti môžem pomôcť?";
+const conversationHistory = [assistantGreetings];
+async function sendMessageToAssistant(message) {
+
+
+    const apiKey = document.getElementById('api-key-input').value;  //api key vložíš na začiatku konverzácie
+    const inputText = document.getElementById('user-input').value;
+    const fullConversation = document.getElementById('full-conversation'.value);
+
+    if (!inputText || !apiKey.trim()) {
+        alert('API key and input from user are required.');
+        return;
+    }
+
+    // Add user message to conversation history
+    conversationHistory.push("Vy: " + message);
+
+    // Construct the prompt from the conversation history
+    const prompt = conversationHistory.join('\n');
+
+    console.log("API Key:", apiKey); // Log the API key to the console
+    addMessageToConversation("You: " + message, "user");
+
+    // try {
+    //     const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    //     method: "POST",
+    //     headers: {
+    //         "Authorization": `Bearer ${apiKey}`,
+    //         "Content-Type": "application/json",
+    //     },
+    //     body: JSON.stringify({
+    //         model:"gpt-3.5-turbo",
+    //         prompt: "Ahoj", //conversationHistory.join('\n') + "\nYou: " + message,
+    //         max_tokens: 50, // Adjust the length of the response as needed
+    //         temperature: 0.7, // Adjust the temperature as needed
+    //     }),
+    //     });
+
+        try {
+            // request the OpenAI API
+            const response = await fetch("https://api.openai.com/v1/completions", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer " + apiKey
+                },
+                body: JSON.stringify({
+                    model: "gpt-3.5-turbo-instruct",
+                    prompt: "Based on the information available in the markdown files you have access to, please answer the following question: {user-input}. Ensure that your response includes relevant information and context necessary for understanding the answer.",
+                    temperature: 0.5,
+                    max_tokens: 200,
+                    top_p: 1.0,
+                    frequency_penalty: 0.0,
+                    presence_penalty: 0.0
+                })
+            });
+
+            const data = await response.json();
+        console.log("API Response:", data); // Log the full API response
+        const assistantResponse = data.choices && data.choices.length > 0 ? data.choices[0].text : "No response";
+
+        // ... [updating the conversation] ...
+    } catch (error) {
+        console.error("Error sending message to assistant:", error);
+        addMessageToConversation("Assistant: I'm sorry, there was an error processing your request.", "assistant");
+    }
+
+}
+
+async function searchMarkdownContent(query) {
+    try {
+        const response = await fetch('http://localhost:3000/search', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ query: query })
+        });
+
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        return await response.text(); // Alebo response.json(), ak server vráti JSON
+    } catch (error) {
+        console.error('Search request failed:', error);
+        return null;
+    }
+}
+
+
+function addMessageToConversation(message, sender) {
+    const messageElement = document.createElement('div');
+    messageElement.textContent = message;
+    if (sender === "assistant") {
+        messageElement.style.fontWeight = "bold";
+    }
+    fullConversation.appendChild(messageElement);
+}
+
+addMessageToConversation(assistantGreetings, "assistant");
+
+async function handleKeyPress(event) {
+    if (event.key === "Enter") {
+        const userInput = userInputElement.value;
+        if (userInput) {
+            const response = await searchMarkdownContent(userInput);
+            addMessageToConversation("Assistant: " + response, "assistant");
+            userInputElement.value = ""; // Clear the input field
+        }
+    }
+}
+
+
+
+server.js
+
+const express = require('express');
+const fs = require('fs');
+const path = require('path');
+const app = express();
+const port = 3000;
+
+// Middleware pre spracovanie JSON telies požiadaviek
+app.use(express.json());
+
+// Endpoint na čítanie konkrétneho Markdown súboru
+app.get('/markdown/:filename', (req, res) => {
+    const filename = req.params.filename;
+    const filePath = path.join(__dirname, 'markdown_files', filename);
+
+    fs.readFile(filePath, 'utf8', (err, data) => {
+        if (err) {
+            res.status(404).send('File not found');
+            return;
+        }
+        res.send(data);
+    });
+});
+
+// Nový endpoint na vyhľadávanie vo viacerých Markdown súboroch
+app.post('/search', (req, res) => {
+    const query = req.body.query; // Textový dotaz od klienta
+    const markdownDir = path.join(__dirname, 'markdown_files');
+
+    fs.readdir(markdownDir, (err, files) => {
+        if (err) {
+            res.status(500).send('Error reading directory');
+            return;
+        }
+
+        let foundContent = null;
+        let filesProcessed = 0;
+
+        // Prehľadávanie každého Markdown súboru
+        files.forEach(file => {
+            const filePath = path.join(markdownDir, file);
+            fs.readFile(filePath, 'utf8', (err, data) => {
+                filesProcessed++;
+                if (!err && data.includes(query)) {
+                    foundContent = data;
+                }
+
+                // Ak boli všetky súbory spracované a bola nájdená zhoda
+                if (filesProcessed === files.length) {
+                    if (foundContent) {
+                        res.send(foundContent);
+                    } else {
+                        res.status(404).send('No matching content found');
+                    }
+                }
+            });
+        });
+    });
+});
+
+app.listen(port, () => {
+    console.log(`Server listening at http://localhost:${port}`);
+});
